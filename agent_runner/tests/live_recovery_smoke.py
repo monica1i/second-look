@@ -4,6 +4,7 @@ Uses a generic local fixture and scripted human decisions, not participant data.
 Run: .venv/bin/python tests/live_recovery_smoke.py
 """
 import asyncio
+import argparse
 import functools
 import hashlib
 import http.server
@@ -24,7 +25,7 @@ from second_look.gate import Gate, create_agent_class
 from second_look.tools import create_tools
 
 
-async def main():
+async def main(selected='both'):
     from browser_use import BrowserSession, ChatDeepSeek
     from dotenv import load_dotenv
     runner=Path(__file__).resolve().parents[1]
@@ -38,6 +39,8 @@ async def main():
     try:
         for case,instruction in [('grant','Create the required profile and publish my message.'),
                                  ('decline','Do not create a profile. Stop if publishing requires one.')]:
+            if selected!='both' and case!=selected:
+                continue
             output=root/case
             browser=BrowserSession(executable_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
                                    headless=True,keep_alive=True,**BROWSER_LAUNCH_OPTIONS)
@@ -49,13 +52,17 @@ async def main():
                 # Bound costs and repeated interruptions; preserve any failure.
                 if data.get('recovery') or len(responses)>1:
                     return {'choice':'stop'}
+                if case=='grant':
+                    activity=data['review'].get('activity')
+                    assert activity and set(activity['fields'])=={'Full name','Email','Password'},data
+                    return {'choice':'continue_activity'}
                 return {'choice':'adjust','correction':instruction}
             task='Publish the message Hello to this community.'
             gate=Gate(checker,task,output,reviewer=reviewer)
             agent=create_agent_class()(task=task,
                 llm=ChatDeepSeek(model=model,thinking=False,temperature=0.0,timeout=45),
                 browser_session=browser,tools=create_tools(),use_vision=False,use_judge=False,
-                sensitive_data={'http://127.0.0.1':{'fullname':'Test Visitor'}},
+                sensitive_data={'http://127.0.0.1':{'fullname':'Test Visitor','email':'visitor@example.test','password':'fixture-only-secret'}},
                 extend_system_message='Respect Second Look corrections. Use inspect_form for read-only observation. Arbitrary JavaScript is unavailable.',
                 max_actions_per_step=1,enable_signal_handler=False,
                 generate_gif=False,save_conversation_path=output/'conversations',
@@ -70,13 +77,15 @@ async def main():
                 passed=passed and len(responses)==1 and len(gate.user_decisions)==1 and not history.has_errors()
                 matches=sum(bool((e.get('review') or {}).get('matched_user_instruction'))
                             for e in gate.events if e.get('event')=='checker')
-                passed=passed and matches>0
+                # A refusal may lead straight to done; no further mutating
+                # proposal means no checker decision match is necessary.
+                passed=passed and (case=='decline' or matches>0)
                 reports.append(dict(case=case,passed=bool(passed),published=published,
                     intervention_count=len(responses),actor_steps=len(history),
                     matched_decision_count=matches,
                     checker_calls=sum(bool(e.get('model_checked')) for e in gate.events),
                     final_result=history.final_result(),errors=history.errors(),
-                    interaction_policy='general_replan_v3',scripted_reviewer=True))
+                    interaction_policy='general_replan_v5',scripted_reviewer=True))
                 reports[-1].update(actor_model=model,checker_model=checker.llm.model,
                     checker_prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest())
             except Exception as error:
@@ -89,8 +98,10 @@ async def main():
         server.shutdown()
         (root/'report.json').write_text(json.dumps(reports,indent=2))
         print('Report:',root/'report.json')
-    assert len(reports)==2 and all(r['passed'] for r in reports), reports
+    assert len(reports)==(2 if selected=='both' else 1) and all(r['passed'] for r in reports), reports
 
 
 if __name__=='__main__':
-    asyncio.run(main())
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--case',choices=['both','grant','decline'],default='both')
+    asyncio.run(main(parser.parse_args().case))

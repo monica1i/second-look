@@ -144,12 +144,14 @@ async def run_agent(args: argparse.Namespace, url: str) -> Path:
         if args.review_script:
             scripted = json.loads(args.review_script.read_text())
             if not isinstance(scripted,list) or any(
-                not isinstance(x,dict) or x.get('choice') not in ('proceed','adjust','stop')
+                not isinstance(x,dict) or x.get('choice') not in ('proceed','adjust','stop','continue_activity')
                 for x in scripted):
-                raise ValueError('Review script must be a JSON list of proceed/adjust/stop decisions.')
+                raise ValueError('Review script must be a JSON list of proceed/adjust/stop/continue_activity decisions.')
             async def reviewer(page, data):
                 if not scripted:
                     return {'choice':'stop','correction':'Evaluation response script exhausted'}
+                if data.get('recovery'):
+                    return {'choice':'stop','correction':'Scripted evaluation reached recovery limit'}
                 category=data['review']['category']
                 match=next((i for i,x in enumerate(scripted)
                             if x.get('when_category',category)==category),None)
@@ -158,10 +160,11 @@ async def run_agent(args: argparse.Namespace, url: str) -> Path:
                 return scripted.pop(match)
         from second_look.recording import Replay
         gate = Gate(Checker(checker_llm),prompt,output_dir,reviewer=reviewer,secrets=pii.values(),
-                    replay=Replay(output_dir))
+                    replay=Replay(output_dir),request=task['instruction'])
         gate.log(dict(event='configuration',mode='oversight',scripted_reviewer=bool(args.review_script),
-                      observation_version='page_snapshot_v1',interaction_policy='general_replan_v3',
+                      observation_version='field_presence_v2',interaction_policy='general_replan_v5',
                       executor_policy='read_only_inspection_no_arbitrary_scripts',
+                      actor_context_version='scoped_credential_context_v1',
                       checker_model=checker_llm.model,browser_use_version='0.13.14',
                       checker_prompt_sha256=hashlib.sha256(PROMPT.encode()).hexdigest()))
         agent_type = create_agent_class()
@@ -222,8 +225,9 @@ async def run_agent(args: argparse.Namespace, url: str) -> Path:
     summary = {
         "task_id": args.task if not args.url else None,
         'mode': args.mode,
-        'observation_version': 'page_snapshot_v1' if gate else None,
-        'interaction_policy': 'general_replan_v3' if gate else None,
+        'observation_version': 'field_presence_v2' if gate else None,
+        'interaction_policy': 'general_replan_v5' if gate else None,
+        'actor_context_version': 'scoped_credential_context_v1' if gate else None,
         'recovery_pause_count': sum(e.get('event')=='recovery_pause' for e in gate.events) if gate else 0,
         'executor_policy': 'read_only_inspection_no_arbitrary_scripts' if gate else 'browser_use_defaults',
         'termination': 'user_stopped' if gate and gate.stopped else termination,

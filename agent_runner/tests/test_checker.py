@@ -3,10 +3,23 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from second_look.checker import Checker, Review
+from second_look.checker import ActivityReview, Checker, Review
 
 
 class CheckerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_activity_must_reference_all_visible_fields(self):
+        for labels,truncated,expected in [(['Name','Email'],False,True),(['Name'],False,False),
+                                          (['Name','Invented'],False,False),(['Name','Email'],True,False)]:
+            response=Review(decision='review',category='privacy',title='Share details?',
+                explanation='This shares your details.',evidence=['Profile'],
+                activity=ActivityReview(summary='Complete this profile with your details.',
+                    fields=labels,continue_instruction='Complete and submit this profile with my name and email.'))
+            llm=SimpleNamespace(ainvoke=AsyncMock(return_value=SimpleNamespace(completion=response)))
+            result=await Checker(llm).review('Publish',{'input':{}},
+                {'text':'Profile Name Email','form_context':{'fields':[{'label':'Name'},{'label':'Email'}],
+                                                           'truncated':truncated}},[],[])
+            self.assertEqual(result.activity is not None,expected)
+
     async def test_every_mutating_action_is_decided_by_model(self):
         response=Review(decision='allow',category='ordinary',title='Allowed',explanation='Authorized.')
         llm=SimpleNamespace(ainvoke=AsyncMock(return_value=SimpleNamespace(completion=response)))

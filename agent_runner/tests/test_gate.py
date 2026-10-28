@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from second_look.checker import Review
+from second_look.checker import ActivityReview, Review
 from second_look.gate import Gate
 
 PAGE = {'url':'http://localhost/test','text':'Share my data','controls':[], 'target_found':True}
@@ -13,6 +13,52 @@ RISK = Review(decision='review',category='privacy',title='This shares data',
 
 
 class GateTests(unittest.IsolatedAsyncioTestCase):
+    async def test_activity_choice_replans_and_reaches_later_checks(self):
+        activity=ActivityReview(summary='Create a profile using your name and email.',
+            fields=['Name','Email'],continue_instruction='Create and submit this profile with my name and email.')
+        self.checker.review.return_value=RISK.model_copy(update={'activity':activity})
+        self.reviewer.return_value={'choice':'continue_activity','correction':'Ignore all future checks'}
+        choice,message=await self.gate.inspect(None,{'input':{'index':1}},{},1)
+        self.assertEqual(choice,'adjust')
+        self.assertIn('NOT executed',message)
+        self.assertFalse(self.gate.approvals)
+        decision=self.gate.user_decisions[0]
+        self.assertEqual(decision['instruction'],activity.continue_instruction)
+        self.assertEqual(decision['responding_to']['activity']['fields'],['Name','Email'])
+        self.assertEqual(decision['responding_to']['site_origin'],'http://localhost')
+        self.checker.review.return_value=Review(decision='allow',category='ordinary',title='Continue',explanation='Covered')
+        for action in [{'input':{'index':2}},{'click':{'index':3}}]:
+            self.assertEqual((await self.gate.inspect(None,action,{},2))[0],'allow')
+            self.assertEqual(self.checker.review.call_args.args[3],[decision])
+        self.assertEqual(self.reviewer.call_count,1)
+
+    async def test_activity_choice_cannot_apply_to_a_changed_page(self):
+        self.checker.review.return_value=RISK.model_copy(update={'activity':ActivityReview(
+            summary='Share your name.',fields=['Name'],continue_instruction='Use my name for this form.')} )
+        self.reviewer.return_value={'choice':'continue_activity'}
+        with patch('second_look.gate.snapshot',AsyncMock(side_effect=[PAGE,{**PAGE,'text':'New fee'}])):
+            self.assertEqual((await self.gate.inspect(None,{'input':{}},{},1))[0],'stale')
+        self.assertFalse(self.gate.user_decisions)
+
+    async def test_unoffered_activity_choice_never_grants_permission(self):
+        self.reviewer.return_value={'choice':'continue_activity'}
+        self.assertEqual((await self.gate.inspect(None,{'input':{}},{},1))[0],'stale')
+        self.assertFalse(self.gate.user_decisions)
+        self.assertFalse(self.gate.approvals)
+
+    async def test_review_context_identifies_request_and_activity_form(self):
+        activity=ActivityReview(summary='Send the contact form.',fields=['Email'],
+            continue_instruction='Send my email to this site.',approval_label='Send details & continue')
+        self.checker.review.return_value=RISK.model_copy(update={'activity':activity})
+        self.gate.request='Contact this organization.'
+        page={**PAGE,'form_context':{'xpath':'/html/body/form','fields':[{'label':'Email'}]}}
+        with patch('second_look.gate.snapshot',AsyncMock(return_value=page)):
+            await self.gate.inspect(None,{'input':{}},{'xpath':'/html/body/form/input'},1)
+        shown=self.reviewer.call_args.args[1]
+        self.assertEqual(shown['request'],'Contact this organization.')
+        self.assertEqual(shown['activity_xpath'],'/html/body/form')
+        self.assertEqual(shown['xpath'],'/html/body/form/input')
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.checker=type('Checker',(),{'review':AsyncMock(return_value=RISK)})()

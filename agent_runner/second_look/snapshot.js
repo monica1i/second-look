@@ -17,37 +17,42 @@
     if (!control && labelElement) control=labelElement.control || labelElement.querySelector('input[type=checkbox],input[type=radio]');
     if (!control && element.matches('[role=checkbox]')) control=element;
   }
-  const label = el => clean(el.labels ? [...el.labels].map(x => x.innerText).join(' ') : '') || clean(el.getAttribute('aria-label')) || clean(el.innerText) || clean(el.getAttribute('placeholder'));
-  const describe = el => el ? ({tag:el.tagName.toLowerCase(), type:el.getAttribute('type'), role:el.getAttribute('role'), label:label(el).slice(0,700), icons:[...el.querySelectorAll('svg[data-testid],svg title')].map(s=>s.getAttribute('data-testid')||s.textContent), checked:el.matches('input[type=checkbox],input[type=radio]') ? el.checked : el.getAttribute('aria-checked'), disabled:!!el.disabled, id:el.id || null}) : null;
+  const label = el => clean(el.labels ? [...el.labels].map(x => x.innerText).join(' ') : '') || clean(el.getAttribute('aria-label')) || (el.matches('input,textarea,select')?'':clean(el.innerText)) || clean(el.getAttribute('placeholder'));
+  // Only presence is exported: never contents or lengths, including passwords.
+  const filled = el => el.matches('textarea,select') || (el.matches('input') && !['checkbox','radio','button','submit','reset','hidden','file','range','color'].includes(el.type)) ? el.value !== '' : null;
+  const describe = el => el ? ({tag:el.tagName.toLowerCase(), type:el.getAttribute('type'), role:el.getAttribute('role'), label:label(el).slice(0,700), icons:[...el.querySelectorAll('svg[data-testid],svg title')].map(s=>s.getAttribute('data-testid')||s.textContent), checked:el.matches('input[type=checkbox],input[type=radio]') ? el.checked : el.getAttribute('aria-checked'), filled:filled(el), disabled:!!el.disabled, id:el.id || null}) : null;
   const xpath = el => {
     const parts=[];
     while(el && el.nodeType===1){const siblings=el.parentElement?[...el.parentElement.children].filter(x=>x.tagName===el.tagName):[el];parts.unshift(el.tagName.toLowerCase()+'['+(siblings.indexOf(el)+1)+']');el=el.parentElement;}
     return '/'+parts.join('/');
   };
-  const nodes = [...document.querySelectorAll('input,select,button,[role=checkbox],[role=button]')].filter(visible).slice(0,160);
+  const nodes = [...document.querySelectorAll('input,textarea,select,button,[role=checkbox],[role=button]')].filter(visible).slice(0,160);
   const controls = nodes.map(el=>({...describe(el),xpath:xpath(el)}));
   const dialogs = [...document.querySelectorAll('[role=dialog],dialog')].filter(visible);
   // textContent includes rendered terms below a scroll fold. It does not read
-  // source files, hidden application state, or input.value/passwords.
+  // source files, hidden application state, or field contents.
   const textRoot = dialogs.length ? dialogs[dialogs.length-1] : document.body;
-  const walker = document.createTreeWalker(textRoot, NodeFilter.SHOW_TEXT);
-  const texts=[]; let n;
-  while ((n=walker.nextNode())) {
-    const p=n.parentElement;
-    if (p && !own(p) && !p.closest('script,style,noscript') && visible(p)) {
-      texts.push(n.textContent);
+  const renderedText=root=>{
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const texts=[]; let n;
+    while ((n=walker.nextNode())) {
+      const p=n.parentElement;
+      if (p && !own(p) && !p.closest('script,style,noscript,input,textarea,select') && visible(p)) {
+        texts.push(n.textContent);
+      }
     }
-  }
-  const text=clean(texts.join(' '));
+    return clean(texts.join(' '));
+  };
+  const text=renderedText(textRoot);
   // Capture the active form/dialog separately. Values are deliberately excluded.
   const formRoot=element?.closest('[role=dialog],dialog') || element?.closest('form') || dialogs.at(-1) ||
     [...document.querySelectorAll('form')].filter(visible).at(-1);
   let formContext=null;
   if(formRoot){
     const formFields=[...formRoot.querySelectorAll('input,textarea,select')].filter(visible);
-    const fieldInfo=el=>({label:label(el),type:el.getAttribute('type')||el.tagName.toLowerCase(),name:el.getAttribute('name')||'',required:!!el.required});
-    const formText=clean(formRoot.innerText);
-    formContext={title:clean(formRoot.querySelector('h1,h2,h3,[role=heading]')?.innerText),
+    const fieldInfo=el=>({label:label(el),type:el.getAttribute('type')||el.tagName.toLowerCase(),name:el.getAttribute('name')||'',required:!!el.required,filled:filled(el)});
+    const formText=renderedText(formRoot);
+    formContext={xpath:xpath(formRoot),title:clean(formRoot.querySelector('h1,h2,h3,[role=heading]')?.innerText),
       text:formText.slice(0,16000),truncated:formText.length>16000 || formFields.length>40,
       fields:formFields.slice(0,40).map(fieldInfo),
       buttons:[...formRoot.querySelectorAll('button,[role=button]')].filter(visible).map(label),

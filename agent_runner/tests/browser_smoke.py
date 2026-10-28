@@ -55,11 +55,11 @@ async def main(live=False):
             pending=asyncio.create_task(wait_decision(page,data,capture=replay.capture))
             await asyncio.sleep(.6)
             labels=await evaluate(page,'() => [...document.getElementById("second-look-host").shadowRoot.querySelectorAll("button")].map(b=>b.textContent)')
-            assert 'Proceed once' in labels and 'Stop task' in labels
+            assert 'Allow this step' in labels and 'Change plan…' in labels and 'Stop task' in labels
             if choice=='adjust':
-                await evaluate(page,'() => { const r=document.getElementById("second-look-host").shadowRoot; [...r.querySelectorAll("button")].find(b=>b.textContent==="Adjust").click(); [...r.querySelectorAll("button")].find(b=>b.textContent==="Continue without partner sharing").click(); [...r.querySelectorAll("button")].find(b=>b.textContent==="Apply correction").click(); }')
+                await evaluate(page,'() => { const r=document.getElementById("second-look-host").shadowRoot; [...r.querySelectorAll("button")].find(b=>b.textContent==="Change plan…").click(); [...r.querySelectorAll("button")].find(b=>b.textContent==="Continue without partner sharing").click(); [...r.querySelectorAll("button")].find(b=>b.textContent==="Apply change").click(); }')
             else:
-                await evaluate(page,'(label) => { const r=document.getElementById("second-look-host").shadowRoot; [...r.querySelectorAll("button")].find(b=>b.textContent===label).click(); }','Proceed once' if choice=='proceed' else 'Stop task')
+                await evaluate(page,'(label) => { const r=document.getElementById("second-look-host").shadowRoot; [...r.querySelectorAll("button")].find(b=>b.textContent===label).click(); }','Allow this step' if choice=='proceed' else 'Stop task')
             result=await pending
             assert result['choice']==choice,result
             if choice=='adjust':
@@ -80,6 +80,83 @@ async def main(live=False):
         out.write_bytes(base64.b64decode(screenshot))
         await remove_ui(page)
         assert await evaluate(page,'() => !document.getElementById("second-look-host")') is True
+        await evaluate(page,'''() => {
+            const form=document.createElement('form');form.id='presence-test';
+            form.innerHTML='<h2>Contact details</h2><label>Full name<input id="presence-name"></label><label>Password<input type="password" id="presence-password"></label><label>Note<textarea id="presence-note"></textarea></label><button type="submit">Send details</button>';
+            document.body.appendChild(form);
+            form.querySelector('input').value='private-fixture-name';
+            form.querySelector('textarea').textContent='private-fixture-note';
+            form.scrollIntoView();
+        }''')
+        presence=await snapshot(page,{'selector':'#presence-name'})
+        assert presence['target']['filled'] is True,presence
+        assert [f['filled'] for f in presence['form_context']['fields']]==[True,False,True],presence
+        assert 'private-fixture-' not in json.dumps(presence),presence
+        await evaluate(page,'() => { document.getElementById("presence-password").value="private-fixture-password"; }')
+        presence=await snapshot(page,{'selector':'#presence-password'})
+        assert presence['target']['filled'] is True and 'private-fixture-' not in json.dumps(presence),presence
+        activity_data={**data,'request':'Send my contact details.', 'activity_xpath':presence['form_context']['xpath'],'xpath':next(c['xpath'] for c in presence['controls'] if c.get('id')=='presence-name'),
+            'review':{**review,'title':'Send these contact details to this site?',
+            'step_description':'Enter your full name',
+            'explanation':'This sends the form with your name, password, and note.',
+            'evidence':['Contact details'],'activity':{
+            'summary':'Send the contact form.','approval_label':'Send details & continue',
+            'fields':['Full name','Password','Note'],
+            'continue_instruction':'Complete and send these contact details to this site.'}}}
+        pending=asyncio.create_task(wait_decision(page,activity_data))
+        await asyncio.sleep(.6)
+        import base64
+        (Path(tempfile.gettempdir())/'second-look-activity.png').write_bytes(base64.b64decode(await page.screenshot()))
+        await evaluate(page,'() => { const r=document.getElementById("second-look-host").shadowRoot; if(!r.textContent.includes("Full name, Password, Note") || !r.textContent.includes("Complete and send these contact details to this site."))throw Error("Missing reviewed instruction or fields"); [...r.querySelectorAll("button")].find(b=>b.textContent==="Send details & continue").click(); }')
+        assert (await pending)['choice']=='continue_activity'
+        assert await evaluate(page,'() => document.getElementById("presence-test").style.outline') == ''
+        # Only three main choices. One-step approval is secondary, and never
+        # promoted to an activity decision. Footer remains visible while reading.
+        pending=asyncio.create_task(wait_decision(page,activity_data))
+        await asyncio.sleep(.6)
+        await evaluate(page,'''() => {
+            const r=document.getElementById('second-look-host').shadowRoot;
+            const main=r.querySelector('.footer .actions');
+            if(main.children.length!==3)throw Error('Expected three primary choices');
+            if(document.getElementById('presence-test').style.outline!=='rgb(34, 104, 189) solid 3px')throw Error('Form not highlighted');
+            const body=r.querySelector('.body');body.appendChild(document.createTextNode('Long page evidence. '.repeat(300)));body.scrollTop=body.scrollHeight;
+            r.querySelector('.scope>summary').click();
+        }''')
+        # Let ResizeObserver reposition the resized card before measuring.
+        await asyncio.sleep(.2)
+        layout=await evaluate(page,'''() => {
+            const r=document.getElementById('second-look-host').shadowRoot;
+            const footer=r.querySelector('.footer').getBoundingClientRect();
+            return {footerVisible:footer.top>=0 && footer.bottom<=innerHeight,open:r.querySelector('.scope').open};
+        }''')
+        assert layout['footerVisible'] and layout['open'],layout
+        await evaluate(page,'''() => {
+            const r=document.getElementById('second-look-host').shadowRoot;
+            let leaked=false;const listener=()=>{leaked=true;};document.addEventListener('keydown',listener);
+            r.querySelector('.scope>summary').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,composed:true}));
+            document.removeEventListener('keydown',listener);
+            if(leaked)throw Error('Dropdown Escape reached the underlying page');
+            if(r.querySelector('.scope').open)throw Error('Escape did not close approval options');
+            r.querySelector('.scope>summary').click();
+            [...r.querySelectorAll('button')].find(b=>b.textContent==='Allow only this step').click();
+        }''')
+        assert (await pending)['choice']=='proceed'
+        # Narrow viewport: all footer controls and dropdown stay on screen.
+        await page._client.send.Emulation.setDeviceMetricsOverride(
+            {'width':375,'height':640,'deviceScaleFactor':1,'mobile':False},session_id=await page.session_id)
+        await mount(page,activity_data)
+        await evaluate(page,'() => document.getElementById("second-look-host").shadowRoot.querySelector(".scope>summary").click()')
+        narrow=await evaluate(page,'''() => {
+            const r=document.getElementById('second-look-host').shadowRoot;
+            return [...r.querySelectorAll('.footer button,.scope-panel')].filter(e=>e.getClientRects().length)
+                .every(e=>{const b=e.getBoundingClientRect();return b.left>=0 && b.right<=innerWidth && b.top>=0 && b.bottom<=innerHeight;});
+        }''')
+        assert narrow,'Approval controls outside narrow viewport'
+        (Path(tempfile.gettempdir())/'second-look-activity-narrow.png').write_bytes(base64.b64decode(await page.screenshot()))
+        await remove_ui(page)
+        await page._client.send.Emulation.clearDeviceMetricsOverride(session_id=await page.session_id)
+        await evaluate(page,'() => document.getElementById("presence-test").remove()')
+        print('PASS: three-choice sticky footer, activity vs one-step choice, form highlight cleanup, narrow viewport, filled-value privacy')
         # Human takeover keeps the page usable and survives manual navigation.
         recovery=dict(recovery=True,review={'title':'Would you like to take over?'},trace=[],url=url)
         pending=asyncio.create_task(wait_decision(page,recovery))
