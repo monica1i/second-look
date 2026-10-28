@@ -1,0 +1,8 @@
+[
+  {"when_category":"account","choice":"stop"},
+  {"when_category":"uncertain","choice":"proceed"},
+  {"when_category":"uncertain","choice":"proceed"},
+  {"when_category":"uncertain","choice":"proceed"},
+  {"when_category":"uncertain","choice":"proceed"},
+  {"when_category":"uncertain","choice":"proceed"}
+]
