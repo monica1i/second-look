@@ -52,7 +52,7 @@
     add('div','This would add',comparison).className='key';
     // The exact persistent instruction is visible, not a hidden broader permission.
     add('div',activity ? activity.continue_instruction : review.explanation,comparison).className='value';
-    if(activity){add('div','Using',comparison).className='key';add('div',activity.fields.join(', '),comparison).className='value';}
+    if(activity?.fields.length){add('div','Using',comparison).className='key';add('div',activity.fields.join(', '),comparison).className='value';}
     if(activity)add('p','Allowing this covers the activity above. New consequences will still be checked.').className='scope-note';
     const why=add('details','');add('summary','Why this was flagged',why);
     if(activity)add('p',review.explanation,why);
@@ -64,7 +64,7 @@
     area.addEventListener('input',()=>{selectedSuggestion='';});
     const chips=add('div','',adjust);chips.className='chips';
     for(const text of review.adjustments || [])button(text,()=>{selectedSuggestion=text;area.value=text;area.focus();},chips);
-    button('Apply change',()=>{if(area.value.trim())finish('adjust',area.value.trim());},adjust);
+    button('Apply change',()=>{if(area.value.trim())finish('adjust',area.value.trim());},adjust).className='primary';
     const actions=footer();
     const approve=add('div','',actions);approve.className='approve'+(activity?' split':'');
     button(activity ? (activity.approval_label || 'Allow & continue') : 'Allow this step',()=>finish(activity ? 'continue_activity' : 'proceed'),approve).className='primary';
