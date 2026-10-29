@@ -37,6 +37,40 @@
       "task_id": 1
     },
     {
+      "run": "task_03_oversight_20261028_222700_734203Z",
+      "recorded_configuration": {
+        "interaction_policy": "general_replan_v5",
+        "checker_prompt_sha256": "a00b543b686faf679578004461490c3fe8102764c6ca1c462c870a59b3417674",
+        "actor_context_version": "scoped_credential_context_v1",
+        "observation_version": "field_presence_v2",
+        "authorization_version": null,
+        "executor_policy": "read_only_inspection_no_arbitrary_scripts",
+        "browser_use_version": "0.13.14"
+      },
+      "files_sha256": {
+        "agent_history.gif": "5a0f8c7d884713372635277d789a8cc2c458a0c3fe35c2a8d71d2aad703180ee",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_1.txt": "747f4f6ce801120c385b428fc1bae920dc13f0723f384c57c93ab76c573ad833",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_10.txt": "72151f2254b9ab65489385b725cda5d7bfd76b5cde8ff312a96ec571906712e8",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_11.txt": "5b5060d9a27a2b9b0f60f19b4de1a82e760a8dbe185fa5443c70555ff8d24828",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_12.txt": "94ba4818f53e6cbde6aded330f528765784210e514b87c274af37385d0b350b2",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_13.txt": "668c2c0f8dc9621cf48d7ed3ec290cb717677bb7e3fda5ced064344a49fa283e",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_2.txt": "bf24ccc9ffe2fe4474875fce188eb9d692f26875bcc223878e2e9d06b62364fa",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_3.txt": "bdebb2644274440ef8af0b152f7ca278fa807526c89efbe39ba4b49dd5c78814",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_4.txt": "093f9fd6a8ce94a92958f76b23c341b9209a21aa5c4e45445aa4b2b49409ea4b",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_5.txt": "f76941010ecaae8abd0860fda525dfcea699e06283ed3c95ffaa0d3bb7633734",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_6.txt": "d117c83ecda26c8d727112b2e44f0eaaf450d7d494f7b15c12875df047db363b",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_7.txt": "603d2ac83221d074d5f2ba918c2e644af9be70dc307a435acce85e4cfb93a423",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_8.txt": "be2e03e1f75f6f4c6cdc54f2ed611cac4dfa343142b1edec78f54ca57b270a3e",
+        "conversations/conversation_06ae276b-4ce9-72d5-8000-2345f1eeb080_9.txt": "76202d10002f3d4658fd68a71069a0d57d227b88c4c3980d566052b62e933d9a",
+        "history.json": "543e08a7f36715270de46bc2f371931baf77551a56f8aabc64e9d1fc4683c32c",
+        "interventions.jsonl": "3692a45d5f3c891398af6850f5350e9ad81401055beb89a322233fbb29553545",
+        "summary.json": "cd4f218d31feabcd7fb92f676ec6ae162c7c7ec25f7dcb03719eb8d413dc067c",
+        "trace.html": "72e4e13b35f5941bcf89700c444948348674d5897dfe10d603193869846105b4"
+      },
+      "path": "task_03_oversight_20261028_222700_734203Z",
+      "task_id": 3
+    },
+    {
       "run": "task_05_oversight_20261028_214359_250241Z",
       "recorded_configuration": {
         "interaction_policy": "general_replan_v5",

@@ -11,6 +11,8 @@ AgentEval/browser_use/browser/
 sdk.json
 .env
 .venv/
+__pycache__/
+*.py[cod]
 node_modules
 dist
 dist-ssr
@@ -30,3 +32,14 @@ dist-ssr
 
 
 .history
+
+# Local research material; publish only runtime and curated oversight examples.
+/docs/
+/AgentResult/
+/website/README.md
+/agent_runner/README.md
+/agent_runner/analyze_runs.py
+/agent_runner/tests/
+/agent_runner/runs/*
+!/agent_runner/runs/second_look/
+/agent_runner/runs/second_look/README.md
