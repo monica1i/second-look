@@ -1,8 +1,10 @@
 # Second Look
 
-Ask a browser agent to “subscribe to this creator,” and it may also accept a preselected box that shares your information with advertisers. **Second Look pauses before the agent clicks**, shows the page text behind the concern, and lets you tell the agent which consequences you accept.
+“Subscribe to this creator” sounds like a simple request until the site preselects a box to share your information with advertisers. **Second Look is a Human–AI interaction prototype that asks when a browser agent should pause and what its user’s answer should authorize.**
 
-I’m Monica Li. I designed the review interaction and built the Python browser runner, the model-based checker, and the event logging that connects each decision to what the agent did next. I used the 16 shopping, social media, and streaming scenarios from Jingyu Tang and collaborators’ [AgentEval](https://github.com/jytang0621/AgentEval) as the test environment.
+When a checker flags a possible consequence, a card appears on the webpage before the agent acts. It places **“You asked”** beside **“This would add”** and lets the person inspect the page text behind the warning. A correction such as “subscribe without ad sharing” gives the agent an instruction it can carry into later steps.
+
+I designed this interaction and built the Python browser runner, model-based checker, and action logs. The test environment comes from Jingyu Tang and collaborators’ research on how browser agents respond to dark patterns across 16 shopping, social media, and streaming scenarios. [AgentEval](https://github.com/jytang0621/AgentEval)
 
 ![Second Look pauses at a registration form while the agent is trying to post a comment. The review card offers to register and post, approve a single step, or change the plan.](demo/task13.gif)
 
@@ -31,7 +33,7 @@ You can explore the [saved runs](agent_runner/runs/second_look/) to see the agen
 
 The demonstrations establish how the prototype behaves in these cases. Review accuracy, user workload, and the benefit over an unsupervised agent remain open questions. The actor and checker used the same underlying model and can share blind spots. The checker can also misinterpret a genuine quotation or miss a visual cue outside the rendered text it receives.
 
-My proposed study would compare one-step approval with an interface that also offers activity approval. After the registration example, I would ask participants which later actions they believed they had authorized, then compare their answers with the displayed permission and the execution trace.
+The HCI question is whether people can delegate several steps and still understand where their permission ends. In a proposed study, I would compare one-step approval with an interface that also offers activity approval. After someone chooses “Register & post comment,” would they expect the agent to enter their email? To share it with an advertising partner? I would compare those answers with the permission shown on the card, check subsequent actions against the trace, and measure interruptions, perceived control, and mental effort.
 
 ## Run it locally
 
